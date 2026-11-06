@@ -28,7 +28,7 @@ import {
 import { MainMenu, GameMode } from './components/MainMenu';
 import { CountrySelector } from './components/CountrySelector';
 import { GameModesModal, TournamentMatch } from './components/GameModesModal';
-import { GameInterface } from './components/GameInterface';
+import { GameInterface, CaptureEventInfo } from './components/GameInterface';
 import { VictoryScreen, GameOverState } from './components/VictoryScreen';
 import { SettingsModal, HowToPlayModal, AboutModal } from './components/Modals';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -180,6 +180,8 @@ export default function App() {
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
   const [capturedByWhite, setCapturedByWhite] = useState<PieceSymbol[]>([]);
   const [capturedByBlack, setCapturedByBlack] = useState<PieceSymbol[]>([]);
+  const [captureEvent, setCaptureEvent] = useState<CaptureEventInfo | null>(null);
+  const captureTimerRef = useRef<number | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<{
     from: Square;
     to: Square;
@@ -213,20 +215,12 @@ export default function App() {
       progress += 18;
       if (progress >= 100) {
         setLoadingProgress(100);
-        setLoadingStatus('Ready for Battle!');
         clearInterval(interval);
         window.setTimeout(() => {
           setIsLoading(false);
         }, 260);
       } else {
         setLoadingProgress(progress);
-        if (progress < 45) {
-          setLoadingStatus('Loading Mysterious 3D Chamber...');
-        } else if (progress < 80) {
-          setLoadingStatus('Summoning Cartoon Soldier Armies...');
-        } else {
-          setLoadingStatus('Preparing Chessboard Arena...');
-        }
       }
     }, 180);
 
@@ -288,6 +282,20 @@ export default function App() {
 
         if (animatedMove.captured) {
           soundEngine.playSwordClash();
+          if (captureTimerRef.current) {
+            clearTimeout(captureTimerRef.current);
+          }
+          setCaptureEvent({
+            id: Date.now() + Math.random(),
+            attackerCountry: animatedMove.color === 'w' ? whiteCountry.name : blackCountry.name,
+            victimCountry: animatedMove.color === 'w' ? blackCountry.name : whiteCountry.name,
+            attackerPiece: animatedMove.piece,
+            capturedPiece: animatedMove.captured,
+            attackerColor: animatedMove.color,
+          });
+          captureTimerRef.current = window.setTimeout(() => {
+            setCaptureEvent(null);
+          }, 2600);
         } else {
           soundEngine.playFootsteps(3);
         }
@@ -308,7 +316,7 @@ export default function App() {
         soundEngine.playCheck();
       }
     },
-    [gameMode]
+    [gameMode, whiteCountry.name, blackCountry.name]
   );
 
   // Full board & match reset helper (used when exiting game or starting fresh)
@@ -322,6 +330,11 @@ export default function App() {
     setMoveHistory([]);
     setCapturedByWhite([]);
     setCapturedByBlack([]);
+    setCaptureEvent(null);
+    if (captureTimerRef.current) {
+      clearTimeout(captureTimerRef.current);
+      captureTimerRef.current = null;
+    }
     setPendingPromotion(null);
     setGameOver(null);
     setIsPaused(false);
@@ -554,6 +567,7 @@ export default function App() {
 
     if (isComputerBlack && game.turn() === 'b' && !game.isGameOver()) {
       setIsAIThinking(true);
+      const delayMs = lastMoveAnim?.captured ? 1580 : 550;
       const timer = window.setTimeout(() => {
         const currentFen = chessRef.current.fen();
         const aiMove = computeBestAIMove(currentFen, aiDifficulty);
@@ -565,14 +579,24 @@ export default function App() {
             aiMove.promotion as PieceSymbol | undefined
           );
         }
-      }, 550);
+      }, delayMs);
 
       return () => {
         clearTimeout(timer);
         setIsAIThinking(false);
       };
     }
-  }, [fen, screen, isPaused, activeModal, gameOver, gameMode, aiDifficulty, executeChessMove]);
+  }, [
+    fen,
+    screen,
+    isPaused,
+    activeModal,
+    gameOver,
+    gameMode,
+    aiDifficulty,
+    lastMoveAnim?.captured,
+    executeChessMove,
+  ]);
 
   useEffect(() => {
     if (screen !== 'playing' || isPaused || activeModal !== 'none' || gameOver) return;
@@ -696,14 +720,7 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#09080d] select-none">
-      {isLoading && (
-        <LoadingScreen
-          progress={loadingProgress}
-          statusText={loadingStatus}
-          whiteCountry={whiteCountry}
-          blackCountry={blackCountry}
-        />
-      )}
+      {isLoading && <LoadingScreen progress={loadingProgress} />}
 
       <ChessScene3D
         boardCells={boardCells}
@@ -763,6 +780,9 @@ export default function App() {
           isAIThinking={isAIThinking}
           inCheck={inCheck}
           isCheckmate={isCheckmate}
+          capturedByWhite={capturedByWhite}
+          capturedByBlack={capturedByBlack}
+          captureEvent={captureEvent}
           isPaused={isPaused}
           settings={settings}
           hintMove={hintMove}

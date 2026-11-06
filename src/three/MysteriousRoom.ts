@@ -246,13 +246,6 @@ export function buildMysteriousRoom(
     pillar.add(flame);
     torchFlames.push(flame);
 
-    if (i % 2 === 0) {
-      const pLight = new THREE.PointLight(0xff9d3b, 18, 24, 1.5);
-      pLight.position.set(0, 8.8, 2.1);
-      pillar.add(pLight);
-      torchLights.push(pLight);
-    }
-
     roomGroup.add(pillar);
   }
 
@@ -428,16 +421,6 @@ export function buildMysteriousRoom(
   const particleCount = 180;
   const positions = new Float32Array(particleCount * 3);
   const colors = new Float32Array(particleCount * 3);
-
-  for (let i = 0; i < 8; i++) {
-    // Also add warm lights near the wall murals so the walls have a rich golden glow
-    if (i % 2 === 0) {
-      const angle = (i * Math.PI) / 4;
-      const wallLight = new THREE.PointLight(0xfbbf24, 15, 25, 1.5);
-      wallLight.position.set(Math.sin(angle) * 31, 6.5, Math.cos(angle) * 31);
-      roomGroup.add(wallLight);
-    }
-  }
 
   for (let i = 0; i < particleCount; i++) {
     const r = 4 + Math.random() * 24;

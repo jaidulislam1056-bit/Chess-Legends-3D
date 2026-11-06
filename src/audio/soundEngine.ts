@@ -227,41 +227,86 @@ class SoundEngine {
     }
   }
 
-  public playSwordClash() {
+  public playGunshot() {
     if (!this.sfxEnabled) return;
     this.initContext();
     if (!this.ctx) return;
 
     const now = this.ctx.currentTime;
-    const freqs = [1180, 1760, 2480];
-    freqs.forEach((f, idx) => {
+
+    // 1. Crisp Gunshot White-Noise Burst (Muzzle Blast)
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.11);
+    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.028));
+    }
+
+    const whiteNoise = this.ctx.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1400, now);
+    filter.Q.setValueAtTime(0.9, now);
+
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(Math.max(0.001, 0.38 * this.volume), now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+    whiteNoise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this.ctx.destination);
+    whiteNoise.start(now);
+    whiteNoise.stop(now + 0.11);
+
+    // 2. Punchy Low-End Barrel Thump
+    const punch = this.ctx.createOscillator();
+    const punchGain = this.ctx.createGain();
+    punch.type = 'sawtooth';
+    punch.frequency.setValueAtTime(220, now);
+    punch.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+
+    punchGain.gain.setValueAtTime(Math.max(0.001, 0.32 * this.volume), now);
+    punchGain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+    punch.connect(punchGain);
+    punchGain.connect(this.ctx.destination);
+    punch.start(now);
+    punch.stop(now + 0.1);
+  }
+
+  public playCelebrateChime(styleIndex = 0) {
+    if (!this.sfxEnabled) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const patterns = [
+      [523.25, 659.25, 783.99, 1046.5],
+      [587.33, 739.99, 880.0, 1174.66],
+      [440.0, 554.37, 659.25, 880.0],
+      [659.25, 783.99, 987.77, 1318.5],
+    ];
+    const notes = patterns[styleIndex % patterns.length];
+    notes.forEach((freq, idx) => {
       if (!this.ctx) return;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      osc.type = idx === 0 ? 'sawtooth' : 'triangle';
-      osc.frequency.setValueAtTime(f, now);
-      osc.frequency.exponentialRampToValueAtTime(f * 0.65, now + 0.28);
-
-      gain.gain.setValueAtTime(Math.max(0.001, (0.12 / (idx + 1)) * this.volume), now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.29);
-
+      osc.type = 'triangle';
+      const start = now + idx * 0.065;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(Math.max(0.001, 0.15 * this.volume), start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
       osc.connect(gain);
       gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.3);
+      osc.start(start);
+      osc.stop(start + 0.19);
     });
+  }
 
-    const thud = this.ctx.createOscillator();
-    const thudGain = this.ctx.createGain();
-    thud.type = 'sine';
-    thud.frequency.setValueAtTime(130, now + 0.08);
-    thud.frequency.exponentialRampToValueAtTime(38, now + 0.32);
-    thudGain.gain.setValueAtTime(Math.max(0.001, 0.28 * this.volume), now + 0.08);
-    thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
-    thud.connect(thudGain);
-    thudGain.connect(this.ctx.destination);
-    thud.start(now + 0.08);
-    thud.stop(now + 0.35);
+  public playSwordClash() {
+    this.playGunshot();
   }
 
   public playCheck() {
